@@ -8,6 +8,13 @@ import { Platform } from 'react-native';
 const tintColorLight = '#0a7ea4';
 const tintColorDark = '#fff';
 
+/** Cores do app de finanças */
+export const AppColors = {
+  background: '#FFFFFF',
+  secondary: '#0a7ea4',
+  negative: '#c62828',
+};
+
 export const Colors = {
   light: {
     text: '#11181C',
