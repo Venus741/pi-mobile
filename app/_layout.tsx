@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
+import { AuthProvider } from '@/contexts/auth-context';
 import { FinancesProvider } from '@/contexts/finances-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -14,16 +15,19 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
-    <FinancesProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <AuthProvider>
+      <FinancesProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="finances" options={{ headerShown: false }} />
           <Stack.Screen name="info" options={{ headerShown: false }} />
+          <Stack.Screen name="history" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
         </Stack>
         <StatusBar style="auto" />
-      </ThemeProvider>
-    </FinancesProvider>
+        </ThemeProvider>
+      </FinancesProvider>
+    </AuthProvider>
   );
 };

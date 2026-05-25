@@ -24,7 +24,7 @@ export default function InfoScreen() {
       </Pressable>
 
       <Text style={styles.title}>Ranking de gastos</Text>
-      <Text style={styles.subtitle}>Do maior para o menor valor (nomes iguais somados)</Text>
+      <Text style={styles.subtitle}>Acompanhe quais são seus maiores gastos</Text>
 
       <FlatList
         data={rankedExpenses}

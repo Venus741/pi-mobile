@@ -2,6 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -17,20 +18,65 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppColors } from '@/constants/theme';
 import { useFinances } from '@/contexts/finances-context';
-import type { Expense } from '@/types/expense';
+import type { Expense, PaymentMethod } from '@/types/expense';
+import { PAYMENT_METHODS } from '@/types/expense';
 import { centsFromInput, formatBRLAmount, formatBRLInput } from '@/utils/currency';
+import {
+  dateBRToISO,
+  dateISOToBR,
+  formatDateInput,
+  getTodayDateBR,
+  isValidDateBR,
+} from '@/utils/date';
 
 type ExpenseForm = {
   name: string;
   valueCents: number;
   description: string;
+  paymentMethod: PaymentMethod;
+  date: string;
 };
 
 const emptyForm = (): ExpenseForm => ({
   name: '',
   valueCents: 0,
   description: '',
+  paymentMethod: 'Pix',
+  date: getTodayDateBR(),
 });
+
+function PaymentMethodSelector({
+  value,
+  onChange,
+}: {
+  value: PaymentMethod;
+  onChange: (method: PaymentMethod) => void;
+}) {
+  return (
+    <View style={styles.paymentField}>
+      <Text style={styles.fieldLabel}>Forma de pagamento</Text>
+      <View style={styles.paymentOptions}>
+        {PAYMENT_METHODS.map((method) => {
+          const selected = value === method;
+          return (
+            <Pressable
+              key={method}
+              style={[styles.paymentOption, selected && styles.paymentOptionSelected]}
+              onPress={() => onChange(method)}>
+              <Text
+                style={[
+                  styles.paymentOptionText,
+                  selected && styles.paymentOptionTextSelected,
+                ]}>
+                {method}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
 
 function CurrencyInput({
   valueCents,
@@ -70,6 +116,8 @@ export default function FinancesScreen() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editForm, setEditForm] = useState<ExpenseForm>(emptyForm);
 
+  const [infoMenuVisible, setInfoMenuVisible] = useState(false);
+
   const totalExpensesCents = useMemo(
     () => expenses.reduce((sum, expense) => sum + expense.valueCents, 0),
     [expenses],
@@ -85,7 +133,10 @@ export default function FinancesScreen() {
     return (
       editForm.name !== editingExpense.name ||
       editForm.valueCents !== editingExpense.valueCents ||
-      editForm.description !== editingExpense.description
+      editForm.description !== editingExpense.description ||
+      editForm.paymentMethod !== (editingExpense.paymentMethod ?? 'Pix') ||
+      editForm.date !==
+        (editingExpense.date ? dateISOToBR(editingExpense.date) : getTodayDateBR())
     );
   }, [editingExpense, editForm]);
 
@@ -102,11 +153,18 @@ export default function FinancesScreen() {
   const handleRegisterExpense = () => {
     if (!createForm.name.trim() || createForm.valueCents <= 0) return;
 
+    if (!isValidDateBR(createForm.date)) {
+      Alert.alert('Data inválida', 'Informe a data no formato DD/MM/AAAA.');
+      return;
+    }
+
     const newExpense: Expense = {
       id: Date.now().toString(),
       name: createForm.name.trim(),
       valueCents: createForm.valueCents,
       description: createForm.description.trim(),
+      paymentMethod: createForm.paymentMethod,
+      date: dateBRToISO(createForm.date),
     };
 
     setExpenses((prev) => [newExpense, ...prev]);
@@ -119,6 +177,8 @@ export default function FinancesScreen() {
       name: expense.name,
       valueCents: expense.valueCents,
       description: expense.description,
+      paymentMethod: expense.paymentMethod ?? 'Pix',
+      date: expense.date ? dateISOToBR(expense.date) : getTodayDateBR(),
     });
     setEditModalVisible(true);
   }, []);
@@ -133,6 +193,11 @@ export default function FinancesScreen() {
     if (!editingExpense || !hasEditChanges) return;
     if (!editForm.name.trim() || editForm.valueCents <= 0) return;
 
+    if (!isValidDateBR(editForm.date)) {
+      Alert.alert('Data inválida', 'Informe a data no formato DD/MM/AAAA.');
+      return;
+    }
+
     setExpenses((prev) =>
       prev.map((item) =>
         item.id === editingExpense.id
@@ -141,6 +206,8 @@ export default function FinancesScreen() {
               name: editForm.name.trim(),
               valueCents: editForm.valueCents,
               description: editForm.description.trim(),
+              paymentMethod: editForm.paymentMethod,
+              date: dateBRToISO(editForm.date),
             }
           : item,
       ),
@@ -195,7 +262,7 @@ export default function FinancesScreen() {
 
           <Pressable
             style={({ pressed }) => [styles.infoButton, pressed && styles.buttonPressed]}
-            onPress={() => router.push('/info')}
+            onPress={() => setInfoMenuVisible(true)}
             accessibilityLabel="Informações dos gastos">
             <MaterialIcons name="info" size={28} color={AppColors.background} />
           </Pressable>
@@ -233,6 +300,26 @@ export default function FinancesScreen() {
               onChangeCents={(valueCents) => setCreateForm((prev) => ({ ...prev, valueCents }))}
               style={styles.modalInput}
               placeholder="Valor"
+            />
+
+            <View style={styles.paymentField}>
+              <Text style={styles.fieldLabel}>Data do gasto</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={createForm.date}
+                onChangeText={(text) =>
+                  setCreateForm((prev) => ({ ...prev, date: formatDateInput(text) }))
+                }
+                placeholder="DD/MM/AAAA"
+                placeholderTextColor="#9BA1A6"
+                keyboardType="numeric"
+                maxLength={10}
+              />
+            </View>
+
+            <PaymentMethodSelector
+              value={createForm.paymentMethod}
+              onChange={(paymentMethod) => setCreateForm((prev) => ({ ...prev, paymentMethod }))}
             />
 
             <TextInput
@@ -285,6 +372,26 @@ export default function FinancesScreen() {
                 placeholder="Valor"
               />
 
+              <View style={styles.paymentField}>
+                <Text style={styles.fieldLabel}>Data do gasto</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={editForm.date}
+                  onChangeText={(text) =>
+                    setEditForm((prev) => ({ ...prev, date: formatDateInput(text) }))
+                  }
+                  placeholder="DD/MM/AAAA"
+                  placeholderTextColor="#9BA1A6"
+                  keyboardType="numeric"
+                  maxLength={10}
+                />
+              </View>
+
+              <PaymentMethodSelector
+                value={editForm.paymentMethod}
+                onChange={(paymentMethod) => setEditForm((prev) => ({ ...prev, paymentMethod }))}
+              />
+
               <TextInput
                 style={[styles.modalInput, styles.modalDescriptionInput]}
                 value={editForm.description}
@@ -325,6 +432,33 @@ export default function FinancesScreen() {
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={infoMenuVisible} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setInfoMenuVisible(false)} />
+          <View style={styles.infoMenuContent}>
+            <Text style={styles.modalTitle}>Opções</Text>
+
+            <Pressable
+              style={({ pressed }) => [styles.infoMenuOption, pressed && styles.buttonPressed]}
+              onPress={() => {
+                setInfoMenuVisible(false);
+                router.push('/info');
+              }}>
+              <Text style={styles.infoMenuOptionText}>Ranking de gastos</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [styles.infoMenuOption, pressed && styles.buttonPressed]}
+              onPress={() => {
+                setInfoMenuVisible(false);
+                router.push('/history');
+              }}>
+              <Text style={styles.infoMenuOptionText}>Veja gastos passados</Text>
+            </Pressable>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -435,8 +569,11 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     padding: 20,
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalScrollContent: {
     flexGrow: 1,
@@ -466,6 +603,37 @@ const styles = StyleSheet.create({
   modalDescriptionInput: {
     minHeight: 100,
     paddingTop: 12,
+  },
+  paymentField: {
+    gap: 8,
+  },
+  fieldLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: AppColors.secondary,
+  },
+  paymentOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  paymentOption: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: AppColors.secondary,
+  },
+  paymentOptionSelected: {
+    backgroundColor: AppColors.secondary,
+  },
+  paymentOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: AppColors.secondary,
+  },
+  paymentOptionTextSelected: {
+    color: AppColors.background,
   },
   modalActions: {
     flexDirection: 'row',
@@ -514,5 +682,25 @@ const styles = StyleSheet.create({
   },
   modalButtonDisabled: {
     opacity: 0.4,
+  },
+  infoMenuContent: {
+    backgroundColor: AppColors.background,
+    borderRadius: 16,
+    padding: 20,
+    gap: 12,
+    width: '100%',
+    maxWidth: 320,
+    alignSelf: 'center',
+  },
+  infoMenuOption: {
+    backgroundColor: AppColors.secondary,
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  infoMenuOptionText: {
+    color: AppColors.background,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
