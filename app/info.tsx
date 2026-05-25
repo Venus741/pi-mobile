@@ -7,12 +7,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppColors } from '@/constants/theme';
 import { useFinances } from '@/contexts/finances-context';
 import { formatBRLAmount } from '@/utils/currency';
+import { buildValueRanking } from '@/utils/expense-ranking';
 
 export default function InfoScreen() {
   const router = useRouter();
   const { expenses } = useFinances();
 
-  const rankedExpenses = useMemo(() => [...expenses].reverse(), [expenses]);
+  const rankedExpenses = useMemo(() => buildValueRanking(expenses), [expenses]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -23,11 +24,11 @@ export default function InfoScreen() {
       </Pressable>
 
       <Text style={styles.title}>Ranking de gastos</Text>
-      <Text style={styles.subtitle}>Do primeiro ao último registrado</Text>
+      <Text style={styles.subtitle}>Do maior para o menor valor (nomes iguais somados)</Text>
 
       <FlatList
         data={rankedExpenses}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.name}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <Text style={styles.emptyList}>Nenhum gasto registrado ainda.</Text>
